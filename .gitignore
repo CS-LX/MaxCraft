@@ -1,0 +1,15 @@
+.research/
+.runtime/
+logs/
+dist/
+__pycache__/
+*.pyc
+*.max
+*.max.bak
+*.zip
+*.jar
+*.png
+*.bmp
+*.rgba
+.venv/
+
