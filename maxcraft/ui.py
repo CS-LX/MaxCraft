@@ -313,11 +313,18 @@ class Panel(QtWidgets.QDialog):
                 self.fail(error)
 
     def tick(self):
+        # Esc belongs to Minecraft while this callback updates its camera/meshes.
+        # Max's global escape polling otherwise aborts pymxs even when Qt accepts
+        # the key. Scope the override to our callback, preserving user settings.
+        escape_enabled = bool(rt.escapeEnable)
         try:
+            rt.escapeEnable = False
             self.update_bridge()
         except Exception as error:
             self.fail(error)
             self.disconnect(keep_status=True)
+        finally:
+            rt.escapeEnable = escape_enabled
 
     def update_bridge(self):
         if not self.link:

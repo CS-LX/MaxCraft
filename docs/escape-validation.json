@@ -1,0 +1,8 @@
+{
+  "playing": true,
+  "overlay_visible": true,
+  "backend_alive": true,
+  "escape_disabled_during_camera": true,
+  "escape_restored_after_callback": true,
+  "errors_since_fix": 0
+}
