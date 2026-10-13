@@ -26,15 +26,19 @@ class Scene:
     def capture_view(self):
         self.viewport = int(rt.viewport.activeViewport)
         self.previous = (rt.viewport.getType(), rt.viewport.getTM(), rt.viewport.getFOV())
+        self.previous_camera = rt.viewport.getCamera()
         rt.viewport.setType(rt.Name('view_persp_user'))
 
     def restore_view(self):
         if self.previous:
             kind, matrix, fov = self.previous
             rt.viewport.activeViewport = self.viewport
-            rt.viewport.setType(kind)
-            rt.viewport.setTM(matrix)
-            rt.viewport.setFOV(fov)
+            if getattr(self, 'previous_camera', None) is not None and rt.isValidNode(self.previous_camera):
+                rt.viewport.setCamera(self.previous_camera)
+            else:
+                rt.viewport.setType(kind)
+                rt.viewport.setTM(matrix)
+                rt.viewport.setFOV(fov)
             self.previous = None
             rt.redrawViews()
 

@@ -1,0 +1,35 @@
+{
+  "handshake": true,
+  "standing_on_max_geometry": [
+    0.5,
+    100.0,
+    -5.5
+  ],
+  "overlay_pixels": [
+    1662,
+    1080
+  ],
+  "start": [
+    0.5,
+    100.0,
+    -5.5
+  ],
+  "after_w": [
+    0.5,
+    100.0,
+    -2.685711828084025
+  ],
+  "movement_distance": 2.814288171915975,
+  "jump_y": 101.22051398513005,
+  "inventory_from_qt_key": true,
+  "placed_sections": [
+    "section_0_6_-1"
+  ],
+  "placed_faces": 12,
+  "after_break_faces": 0,
+  "mesh_updates": 13,
+  "host_errors": 0,
+  "f8_released_input": true,
+  "completed": true,
+  "passed": true
+}

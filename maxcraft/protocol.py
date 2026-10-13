@@ -169,7 +169,7 @@ class Link:
             if seq != self.a.load32(MC):
                 continue
             v = MC_SNAPSHOT.unpack_from(raw)
-            if not all(math.isfinite(x) for x in (*v[2:10], *v[13:16], *v[17:20])):
+            if not all(math.isfinite(v[i]) for i in (2,3,4,5,6,7,8,12,13,14,16,17,18)):
                 raise ProtocolError('Non-finite player state')
             return dict(flags=v[1], pos=v[2:5], yaw=v[5], pitch=v[6], eye_height=v[7],
                         sensitivity=v[8], ack=v[9], gui_scale=v[10], frame=v[11],
@@ -211,6 +211,9 @@ class Link:
             return
         try:
             self.input(6)
+        except ProtocolError:
+            # The zero heartbeat is authoritative even when the input ring is full.
+            pass
         finally:
             self.a.store64(0x10, 0)
             self.m.close()

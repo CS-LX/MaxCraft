@@ -5,7 +5,7 @@ import struct
 import sys
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from maxcraft.protocol import Atomics, ByteRing, MC_SNAPSHOT, ProtocolError, VERTEX
+from maxcraft.protocol import Atomics, ByteRing, Link, MC, MC_SNAPSHOT, ProtocolError, VERTEX
 from maxcraft.geometry import to_mc, to_max, camera_axes, collision_packets
 
 
@@ -81,6 +81,8 @@ class GeometryTests(unittest.TestCase):
         self.assertTrue(voxels)
         self.assertTrue(any(v[0] < 0 for v in voxels))
         self.assertTrue(all(v[1] == 99 for v in voxels))
+        known = [struct.unpack_from('<6iII', p) for k,p in packets if k == 2]
+        self.assertTrue(any(h[1] == 88 and h[7] == 0 for h in known), 'Air below ground must be marked known to release teleport hold')
 
     def test_geometry_limits_fail_closed(self):
         with self.assertRaises(ValueError):
@@ -89,6 +91,30 @@ class GeometryTests(unittest.TestCase):
     def test_wire_sizes(self):
         self.assertEqual(VERTEX.size, 32)
         self.assertEqual(MC_SNAPSHOT.size, 104)
+
+
+class PlayerTests(unittest.TestCase):
+    def setUp(self):
+        self.link = Link.__new__(Link)
+        self.link.m = bytearray(1024)
+        self.link.a = Atomics(self.link.m)
+        MC_SNAPSHOT.pack_into(self.link.m, MC, 2, 5, 1., 100., 3., 90., -20., 1.62, .5, 123, 2, 50, 70., 0., 0., 0, 1., 101.62, 3.)
+
+    def test_exact_camera_offsets(self):
+        state = self.link.read_player()
+        self.assertEqual(state['pos'], (1., 100., 3.))
+        self.assertEqual(state['eye'], (1., 101.62, 3.))
+        self.assertEqual(state['fov'], 70.)
+        self.assertEqual(state['ack'], 123)
+
+    def test_writer_in_progress_is_skipped(self):
+        self.link.a.exchange32(MC, 3)
+        self.assertIsNone(self.link.read_player())
+
+    def test_invalid_fov_is_rejected(self):
+        struct.pack_into('<f', self.link.m, MC + 0x40, float('nan'))
+        with self.assertRaises(ProtocolError):
+            self.link.read_player()
 
 
 if __name__ == '__main__':

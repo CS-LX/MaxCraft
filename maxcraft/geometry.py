@@ -66,8 +66,16 @@ def collision_packets(triangles, epoch, max_regions=4096, max_samples=4_000_000)
     voxel_regions = defaultdict(list)
     for (x, y, z), bits in blocks.items():
         voxel_regions[(x // 8, y // 8, z // 8)].append(struct.pack('<iiiI8Q', x, y, z, 0, *bits))
+    # SkyCraft waits for known (including empty) regions at the feet and one
+    # region below them before releasing its teleport hold. Publish a halo so
+    # air around thin Max surfaces is explicitly known, not "still loading".
+    populated = regions.keys() | voxel_regions.keys()
+    known = {(x+dx, y+dy, z+dz) for x,y,z in populated
+             for dx in (-1,0,1) for dy in (-1,0,1) for dz in (-1,0,1)}
+    if len(known) > max_regions:
+        raise ValueError('Collision region limit exceeded; export a smaller selection.')
     result = [(1, struct.pack('<I', epoch))]
-    for region in sorted(regions.keys() | voxel_regions.keys()):
+    for region in sorted(known):
         low = tuple(v * 8 for v in region)
         high = tuple(v + 7 for v in low)
         tris, voxels = regions[region], voxel_regions[region]

@@ -13,6 +13,7 @@ from pymxs import runtime as rt
 from .protocol import Link, ProtocolError
 from .geometry import collision_packets
 from .scene import Scene, create_demo
+from . import backend
 
 K = QtCore.Qt.Key
 SCANCODES = {int(getattr(K, 'Key_' + chr(65+i))): 4+i for i in range(26)}
@@ -127,6 +128,7 @@ class Panel(QtWidgets.QDialog):
     def __init__(self):
         super().__init__(qtmax.GetQMaxMainWindow())
         self.setObjectName('MaxCraftPanel')
+        self.setFont(QtGui.QFont('Microsoft YaHei UI', 10))
         self.setWindowTitle('MaxCraft · Minecraft × 3ds Max')
         self.resize(420, 500)
         self.link = None
@@ -134,7 +136,7 @@ class Panel(QtWidgets.QDialog):
         self.overlay = GameOverlay(self)
         self.playing = False
         self.yaw, self.pitch = 0.0, 10.0
-        self.spawn = (0.5, 100.5, 3.5)
+        self.spawn = (0.5, 100.5, -5.5)
         self.teleport = int(time.time()) & 0x7fffffff
         self.epoch = 1
         self.player = None
@@ -148,6 +150,7 @@ class Panel(QtWidgets.QDialog):
         self.ticks = 0
         self.mesh_updates = 0
         self.error_count = 0
+        self.backend_process = None
         layout = QtWidgets.QVBoxLayout(self)
         title = QtWidgets.QLabel('MAXCRAFT')
         title.setStyleSheet('font-size:26px;font-weight:700;color:#b7e479;padding:8px 0;')
@@ -166,12 +169,13 @@ class Panel(QtWidgets.QDialog):
         form.addRow(self.selection_only)
         layout.addLayout(form)
         self.connect_button = self.button(layout, '② 建立连接并导出碰撞', self.connect)
+        self.launch_button = self.button(layout, '启动 Minecraft 开发端', self.launch_backend)
         self.play_button = self.button(layout, '③ 开始 / 继续游戏', self.play)
         self.play_button.setEnabled(False)
         self.button(layout, '刷新场景碰撞', self.export_collision)
         self.button(layout, '返回出生点', self.respawn)
         self.button(layout, '停止连接 / 恢复 Max 视图', self.disconnect)
-        help_text = QtWidgets.QLabel('WASD 移动 · 鼠标转向 · 空格跳跃\n左键挖掘 · 右键使用/放置 · E 背包\n滚轮/1–9 选物品 · T 聊天 · F8 返回 Max\nMinecraft 启动：运行 scripts/start-dev.ps1\n存档：独立 MaxCraft 开发实例中的 SkyCraft 世界')
+        help_text = QtWidgets.QLabel('WASD 移动 · 鼠标转向 · 空格跳跃\n左键挖掘 · 右键使用/放置 · E 背包\n滚轮/1–9 选物品 · T 聊天 · F8 返回 Max\n首次启动需要下载开发依赖，请等待。\n存档：独立 MaxCraft 实例中的 SkyCraft 世界')
         help_text.setWordWrap(True)
         help_text.setStyleSheet('color:#bec4c9;padding:12px 0;')
         layout.addWidget(help_text)
@@ -214,8 +218,12 @@ class Panel(QtWidgets.QDialog):
         self.link = Link()
         self.units.setEnabled(False)
         self.connect_button.setEnabled(False)
-        self.scene.capture_view()
-        self.export_collision()
+        try:
+            self.scene.capture_view()
+            self.export_collision()
+        except Exception:
+            self.disconnect(keep_status=True)
+            raise
 
     def export_collision(self):
         if not self.link:
@@ -244,6 +252,15 @@ class Panel(QtWidgets.QDialog):
         self.overlay.setFocus()
         self.overlay.setCursor(QtCore.Qt.BlankCursor)
         QtGui.QCursor.setPos(self.overlay.mapToGlobal(self.overlay.rect().center()))
+
+    def launch_backend(self):
+        if not self.link:
+            self.connect()
+        if self.link.alive() or (self.backend_process and self.backend_process.poll() is None):
+            self.status.setText('Minecraft 已启动，正在等待就绪。')
+            return
+        self.backend_process = backend.launch()
+        self.status.setText('Minecraft 正在后台启动；首次启动需准备依赖。')
 
     def pause(self):
         was_playing = self.playing
@@ -325,7 +342,8 @@ class Panel(QtWidgets.QDialog):
             if menu != self.overlay.screen_open:
                 self.overlay.screen_open = menu
                 self.overlay.setCursor(QtCore.Qt.ArrowCursor if menu else QtCore.Qt.BlankCursor)
-                QtGui.QCursor.setPos(self.overlay.mapToGlobal(self.overlay.rect().center()))
+                if self.overlay.isVisible():
+                    QtGui.QCursor.setPos(self.overlay.mapToGlobal(self.overlay.rect().center()))
             self.scene.camera(self.player, self.yaw, self.pitch, self.render_width/self.render_height)
         now = time.monotonic()
         if now - self.last_status > 1:
@@ -333,7 +351,10 @@ class Panel(QtWidgets.QDialog):
             ready = alive and self.player and self.player['flags'] & 1 and not self.future and not self.collision
             self.play_button.setEnabled(bool(ready))
             if not alive:
-                self.status.setText('桥接已建立。等待 Minecraft / SkyCraft v11…')
+                if self.backend_process and self.backend_process.poll() is not None:
+                    self.status.setText(f'Minecraft 启动已退出（{self.backend_process.returncode}）。查看项目 logs/minecraft-dev.log 后重新启动。')
+                else:
+                    self.status.setText('桥接已建立。等待 Minecraft / SkyCraft v11…')
             elif self.future:
                 self.status.setText('Minecraft 已连接，正在计算场景碰撞…')
             else:
@@ -342,6 +363,9 @@ class Panel(QtWidgets.QDialog):
 
     def disconnect(self, keep_status=False):
         self.pause()
+        if self.future:
+            self.future.cancel()
+            self.future = None
         if self.link:
             self.link.close()
             self.link = None

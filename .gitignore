@@ -13,6 +13,7 @@ __pycache__/
 *.rgba
 .venv/
 maxcraft/_native/
+maxcraft/installation.json
 *.obj
 *.exp
 *.lib
