@@ -1,0 +1,12 @@
+// Used only with the pinned SkyCraft development checkout.
+allprojects {
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin('net.fabricmc.fabric-loom')) {
+            project.loom.runs.client {
+                runDir new File(System.getenv('MAXCRAFT_ROOT'), '.runtime/minecraft').absolutePath
+                vmArgs '-Dskycraft.link=Local\\MaxCraft_v11', '-Dskycraft.startHidden=true', '-Dskycraft.quitWithSkyrim=true'
+            }
+        }
+    }
+}
+
