@@ -80,7 +80,8 @@ class Scene:
             if sign < 0:
                 right, back = tuple(-x for x in right), tuple(-x for x in back)
         camera = rt.matrix3(rt.point3(*right), rt.point3(*up), rt.point3(*back), rt.point3(*eye))
-        rt.viewport.activeViewport = self.viewport
+        if int(rt.viewport.activeViewport) != self.viewport:
+            rt.viewport.activeViewport = self.viewport
         rt.viewport.setTM(rt.inverse(camera))
         vfov = max(10.0, min(140.0, state['fov'] or 70.0))
         hfov = math.degrees(2 * math.atan(math.tan(math.radians(vfov) / 2) * aspect))

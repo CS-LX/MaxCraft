@@ -6,7 +6,7 @@ Minecraft 负责原版物理、方块、背包和存档；Max 负责宿主场景
 开发目标：Windows / 3ds Max 2027 / Minecraft 26.3 / SkyCraft Fabric 0.1.2，协议 v11。
 这是宿主适配插件，不是重新实现 Minecraft 的方块小游戏。
 
-![Max 视口实测：Minecraft 方块与 Max 茶壶、台阶和墙](docs/viewport.png)
+![实际游戏画面：第一人称、原版物品栏和 Max 场景](docs/gameplay.jpg)
 
 渲染路线仿照 SkyCraft 当前源码：Minecraft 输出它生成的真实网格和贴图，Max 在自己的视口中绘制，与 Max 模型共用深度测试；手臂、背包和 HUD 由 Minecraft 直接渲染成透明画面叠加。当前 Max 宿主用临时场景网格承接，这是与 SkyCraft 的 C++ 帧内绘制的具体差异；不是两张完整游戏截图的深度合成。
 
@@ -27,14 +27,15 @@ Minecraft 负责原版物理、方块、背包和存档；Max 负责宿主场景
 | 选择快捷栏 | 1–9 / 滚轮 |
 | 聊天、命令 | T |
 | Minecraft 菜单 | Esc |
-| 释放输入、返回 Max | F8，或切换到其他窗口 |
+| 释放输入、返回 Max | F8 |
 
 初始快捷栏第 5 格是木板。新世界使用创造模式，也保留 SkyCraft 的初始装备。
 按 F8 释放输入后，后台世界仍可能继续模拟；正式退出请点击「停止连接」。
+切换到其他应用会释放按键，游戏画面保留；切回 Max 即可继续，鼠标不会在其他应用中被拉回。
 
 ## 安装和依赖
 
-- 本地安装包：`dist/MaxCraft-0.1.0.zip`。解压后在 Max 运行 `Install_MaxCraft.ms`。
+- 本地安装包：`dist/MaxCraft-0.1.1.zip`。解压后在 Max 运行 `Install_MaxCraft.ms`。
 - 安装器只复制到当前用户的 `scripts/MaxCraft`，并注册 `MaxCraft-Play.mcr`。游戏启动路径指向原解压目录，因此请保留该目录。
 - Max 端：Max 2027.2、Python 3.13.9、PySide6 6.8.3 已实测。不需要 pip。
 - Minecraft 端：JDK 25、Git、Python 3、PowerShell；使用固定 SkyCraft 源码和 Fabric Loom `runClient`。

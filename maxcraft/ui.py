@@ -56,6 +56,9 @@ class GameOverlay(QtWidgets.QWidget):
 
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
+        # Alpha-zero pixels on Windows layered windows pass mouse input through
+        # to the Max viewport. Keep the whole game surface hit-testable.
+        painter.fillRect(self.rect(), QtGui.QColor(0, 0, 0, 1))
         if not self.image.isNull():
             painter.drawImage(self.rect(), self.image)
         painter.setPen(QtGui.QColor('#e8f4df'))
@@ -98,6 +101,8 @@ class GameOverlay(QtWidgets.QWidget):
             self.panel.send_input(2, code, 0)
 
     def mouseMoveEvent(self, event):
+        if not self.panel.playing or not self.isActiveWindow() or not self.hasFocus():
+            return
         if self.screen_open:
             self.panel.send_input(4, a=round(event.position().x()*self.panel.render_width/self.width()),
                                   b=round(event.position().y()*self.panel.render_height/self.height()))
@@ -116,8 +121,26 @@ class GameOverlay(QtWidgets.QWidget):
 
     def focusOutEvent(self, event):
         super().focusOutEvent(event)
+        # Window activation is asynchronous. Never hide the game as a side effect
+        # of focus handoff; release held keys, and let F8 explicitly return to Max.
+        if self.panel.link:
+            try:
+                self.panel.link.input(6)
+            except ProtocolError:
+                pass
+        self.unsetCursor()
+        QtCore.QTimer.singleShot(150, self.check_focus)
+
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
         if self.panel.playing:
-            self.panel.pause()
+            self.setCursor(QtCore.Qt.ArrowCursor if self.screen_open else QtCore.Qt.BlankCursor)
+
+    def check_focus(self):
+        if not self.panel.playing or not self.isVisible():
+            return
+        if self.isActiveWindow() and not self.hasFocus():
+            self.setFocus(QtCore.Qt.ActiveWindowFocusReason)
 
     def closeEvent(self, event):
         self.panel.pause()
@@ -245,12 +268,15 @@ class Panel(QtWidgets.QDialog):
         ratio = min(1.0, 1920/self.overlay.width(), 1080/self.overlay.height())
         self.render_width = round(self.overlay.width()*ratio)
         self.render_height = round(self.overlay.height()*ratio)
-        self.playing = True
+        self.scene.camera(self.player, self.yaw, self.pitch, self.render_width/self.render_height)
+        self.overlay.screen_open = bool(self.player['flags'] & 2)
         self.hide()
         self.overlay.show()
+        self.overlay.raise_()
         self.overlay.activateWindow()
-        self.overlay.setFocus()
-        self.overlay.setCursor(QtCore.Qt.BlankCursor)
+        self.playing = True
+        self.overlay.setFocus(QtCore.Qt.ActiveWindowFocusReason)
+        self.overlay.setCursor(QtCore.Qt.ArrowCursor if self.overlay.screen_open else QtCore.Qt.BlankCursor)
         QtGui.QCursor.setPos(self.overlay.mapToGlobal(self.overlay.rect().center()))
 
     def launch_backend(self):
