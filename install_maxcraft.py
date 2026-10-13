@@ -9,7 +9,14 @@ if not (source / 'maxcraft/_native/atomics.dll').is_file():
     raise RuntimeError('缺少 atomics.dll，请先运行 scripts/build_native.cmd，或使用发布安装包。')
 target = Path(str(rt.getDir(rt.Name('userScripts')))) / 'MaxCraft'
 target.mkdir(parents=True, exist_ok=True)
-shutil.copytree(source / 'maxcraft', target / 'maxcraft', dirs_exist_ok=True,
+def copy_changed(src, dst):
+    # Windows locks loaded DLLs. Reinstalling this same build needs no rewrite.
+    if Path(dst).is_file() and Path(src).read_bytes() == Path(dst).read_bytes():
+        return str(dst)
+    return shutil.copy2(src, dst)
+
+
+shutil.copytree(source / 'maxcraft', target / 'maxcraft', dirs_exist_ok=True, copy_function=copy_changed,
                 ignore=shutil.ignore_patterns('__pycache__', '*.obj', '*.lib', '*.exp'))
 shutil.copy2(source / 'launch_maxcraft.py', target / 'launch_maxcraft.py')
 (target / 'maxcraft/installation.json').write_text(json.dumps({'project_root':str(source)}, ensure_ascii=False), encoding='utf-8')

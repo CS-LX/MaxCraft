@@ -313,15 +313,24 @@ class Panel(QtWidgets.QDialog):
         if not alive and self.playing:
             self.pause()
         self.link.drain_events()
-        for kind, data in self.link.render.read(max_messages=48):
+        patches = {}
+        # Animated atlas regions can exceed 48 messages/tick. Drain the bounded
+        # ring and coalesce them, otherwise block edits wait behind old animation.
+        for kind, data in self.link.render.read(max_messages=8192, max_bytes=64 << 20):
             if kind in (2, 5, 6):
                 key = (kind, data[:12]) if kind == 2 else (kind,)
                 self.pending_meshes[key] = (kind, data)
             elif kind == 3:
+                patches.clear()
                 self.pending_meshes.clear()
                 self.scene.consume(kind, data, self.player)
+            elif kind == 7:
+                patches[data[:16]] = data
             elif kind in (1, 4):
                 self.scene.consume(kind, data, self.player)
+        for data in patches.values():
+            self.scene.consume(7, data, self.player)
+        self.scene.flush_textures()
         # One latest geometry update per UI tick; stale dynamic frames are replaced.
         if self.pending_meshes:
             key = next(iter(self.pending_meshes))

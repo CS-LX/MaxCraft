@@ -99,6 +99,7 @@ class Probe(QtCore.QObject):
             self.command('/give @s minecraft:stone 64')
             self.next(1)
         elif self.stage == 8:
+            self.results['baseline_faces'] = sum(n.mesh.numfaces for k,n in p.scene.nodes.items() if k.startswith('section'))
             # SkyCraft's original starter kit puts oak planks in hotbar slot 5.
             self.key(34, True)
             self.key(34, False)
@@ -130,7 +131,7 @@ class Probe(QtCore.QObject):
             self.results['passed'] = (self.results['movement_distance'] > 1
                                       and self.results['jump_y'] > 100.5
                                       and self.results['inventory_from_qt_key']
-                                      and self.results['placed_faces'] > 0
+                                      and self.results['placed_faces'] > self.results['baseline_faces']
                                       and self.results['after_break_faces'] < self.results['placed_faces']
                                       and self.results['host_errors'] == 0
                                       and self.results['f8_released_input'])

@@ -21,7 +21,16 @@
 - Max：`D:/Development Programs/AutoDesk/3ds Max 2027/3dsmax.exe`，初始场景为空。
 - 自带 Python 3.13.9，PySide6 可用；不依赖用户 Python 环境安装第三方包。
 - 已有 Minecraft 26.3 本地版本。不会读取或提交账号令牌。
-- 用户明确要求永久关闭 MCP safe_mode；配置已写为 false，当前 Max 的原生桥接缓存需要重新启动才能生效。
+- 用户明确要求永久关闭 MCP safe_mode；配置已写为 false，Max 重启后已实测生效。
+
+## 渲染方案核实（2026-10-13）
+
+用户要求仿照近期 Minecraft 入侵其他游戏的实际做法，核心是真实玩法和双向遮挡。最终以源码而非草案设计文档为准：
+
+- SkyCraft `docs/DESIGN.md` 标为早期草案，提过颜色/深度画面合成。它不等于当前已实现的渲染路线。
+- `LevelRendererMixin.java` 在连接期间取消 Minecraft 的世界绘制；`WorldExporter.java` 导出真实区块/实体网格和纹理；`FrameExporter.java` 只导出手部和界面。
+- [`skse/src/WorldRender.cpp`](https://github.com/chasmlol/SkyCraft/blob/bfcaf178524b92c2cdeb88e4ce0f13ef9ded6f32/skse/src/WorldRender.cpp) 绑定 Skyrim 的场景和深度缓冲，绘制真实 MC 网格；固体写入深度，半透明物体使用深度测试和 alpha 混合。
+- MaxCraft 保留该双进程协议，以 Max 临时场景网格适配宿主渲染。不自行模拟方块游戏。相比上游直接 C++/GPU 插入渲染，现版大场景性能和光照效果尚有限制。
 
 ## 实施阶段与验收
 

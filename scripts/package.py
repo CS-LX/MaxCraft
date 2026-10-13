@@ -14,7 +14,9 @@ with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as archive:
         archive.write(root / name, name)
     for folder in ('maxcraft', 'scripts', 'docs', 'native', 'tests'):
         for path in (root / folder).rglob('*'):
-            if path.is_file() and '__pycache__' not in path.parts and path.suffix not in ('.pyc', '.obj', '.lib', '.exp'):
+            if (path.is_file() and '__pycache__' not in path.parts
+                    and path.name != 'installation.json'
+                    and path.suffix not in ('.pyc', '.obj', '.lib', '.exp')):
                 archive.write(path, path.relative_to(root))
 print(output)
 

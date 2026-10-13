@@ -1,0 +1,49 @@
+{
+  "pixel_samples": {
+    "both": {
+      "back_sample": [
+        0,
+        0,
+        0,
+        255
+      ],
+      "front_sample": [
+        201,
+        183,
+        63,
+        255
+      ]
+    },
+    "without_wall": {
+      "back_sample": [
+        164,
+        199,
+        192,
+        255
+      ],
+      "front_sample": [
+        201,
+        183,
+        63,
+        255
+      ]
+    },
+    "without_mc_front": {
+      "back_sample": [
+        0,
+        0,
+        0,
+        255
+      ],
+      "front_sample": [
+        0,
+        0,
+        0,
+        255
+      ]
+    }
+  },
+  "host_errors": 0,
+  "persisted_oak_plank_faces_after_restart": 12,
+  "one_click_launch_verified": true
+}
