@@ -35,7 +35,7 @@ Minecraft 负责原版物理、方块、背包和存档；Max 负责宿主场景
 
 ## 安装和依赖
 
-- 本地安装包：`dist/MaxCraft-0.1.5.zip`。解压后在 Max 运行 `Install_MaxCraft.ms`。
+- 从 [GitHub Releases](https://github.com/CS-LX/MaxCraft/releases) 下载 `MaxCraft-<版本号>.zip`，或本地运行打包脚本。解压后在 Max 运行 `Install_MaxCraft.ms`。
 - 安装器只复制到当前用户的 `scripts/MaxCraft`，并注册 `MaxCraft-Play.mcr`。游戏启动路径指向原解压目录，因此请保留该目录。
 - Max 端：Max 2027.2、Python 3.13.9、PySide6 6.8.3 已实测。不需要 pip。
 - Minecraft 端：JDK 25、Git、Python 3、PowerShell；使用固定 SkyCraft 源码和 Fabric Loom `runClient`。
@@ -72,6 +72,8 @@ Minecraft 方块、背包和游戏逻辑由真实 Minecraft 世界保存：
 
 ## 开发与验证
 
+构建原子操作 DLL 需要 Visual Studio / Build Tools 的「使用 C++ 的桌面开发」组件。脚本通过 `vswhere` 自动定位 x64 编译工具。
+
 ```powershell
 scripts/build_native.cmd
 python -m unittest discover -s tests -v
@@ -84,6 +86,25 @@ python scripts/package.py
 `scripts/profile_motion.py` 在游戏中短距离往返行走并恢复玩家位置，记录真实相机与动态网格更新；传入 `CAPTURE=True` 可额外采样现有视口窗口，检查重复旧画面，采样本身有开销。`scripts/validate_playback.py` 检查背包、Esc、F5、F8 及返回游戏，`scripts/validate_scene_updates.py` 检查原生网格和映射更新；均在 Max 内手动运行。
 
 日志：项目 `logs/minecraft-dev.log`、`%LOCALAPPDATA%/MaxCraft/maxcraft.log`。
+
+## CI 与版本发布
+
+[GitHub Actions](https://github.com/CS-LX/MaxCraft/actions/workflows/ci.yml) 在 `main` 提交、面向 `main` 的 PR 和版本标签推送时构建 Windows x64 DLL、运行单元测试、检查 Python 语法，并生成安装 ZIP 和 SHA-256 校验文件。普通提交只产生构建产物。
+
+**只有推送版本标签才发布 Release**。标签使用 `vX.Y.Z`（也支持 `vX.Y.Z-rc.1` 等预发布），必须与 `maxcraft/__init__.py` 的 `__version__` 一致，且对应提交已包含在远程 `main` 中。打包文件名从同一个版本字段读取。未合并分支上的标签、版本不匹配或测试失败均不会发布。
+
+发布时先更新版本、提交并合入主分支，再推送标签；以下以 `0.1.5` 为例，后续版本替换为新版本号，不移动已经发布的标签：
+
+```powershell
+git switch main
+git push origin main
+git tag -a v0.1.5 -m "MaxCraft 0.1.5"
+git push origin v0.1.5
+```
+
+构建通过后自动上传 `MaxCraft-0.1.5.zip` 和 `.zip.sha256`，生成发布说明；带预发布后缀的版本标记为 Pre-release。工作流使用仓库内置 `GITHUB_TOKEN`，无需配置额外密钥。手动运行工作流只做构建验证。
+
+CI 不安装 3ds Max 或 Minecraft，不包含游戏本体和存档；第一人称、透明度和真实视口性能仍须按验证脚本在 Max 内实测。发布机制参考 [GitHub 工作流事件与过滤规则](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore)。
 
 ## 来源
 
