@@ -5,7 +5,7 @@ import zipfile
 root = Path(__file__).resolve().parents[1]
 if not (root / 'maxcraft/_native/atomics.dll').exists():
     raise SystemExit('Build native/atomics.c first: scripts/build_native.cmd')
-output = root / 'dist/MaxCraft-0.1.2.zip'
+output = root / 'dist/MaxCraft-0.1.3.zip'
 output.parent.mkdir(exist_ok=True)
 files = ['README.md', 'THIRD-PARTY-SKYCRAFT-LICENSE.txt', 'launch_maxcraft.py',
          'install_maxcraft.py', 'Install_MaxCraft.ms']

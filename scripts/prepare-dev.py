@@ -31,6 +31,9 @@ stop_hook = '''// MaxCraft: explicit host disconnect requests a normal save-and-
         quitWithSkyrim(Minecraft.getInstance());'''
 if '// MaxCraft: explicit host disconnect' not in code:
     code = code.replace('quitWithSkyrim(Minecraft.getInstance());', stop_hook)
+code = code.replace('Thread.onSpinWait();',
+                    'java.util.concurrent.locks.LockSupport.parkNanos(250_000L); // MaxCraft: yield CPU while waiting for Max.')
+code = code.replace('options.framerateLimit().set(260);','options.framerateLimit().set(60);')
 client.write_text(code, encoding='utf-8')
 entrypoint = SOURCE / 'fabric/src/client/java/dev/skycraft/client/SkyCraftClient.java'
 code = entrypoint.read_text(encoding='utf-8').replace('DiscordPresence.start();', '// MaxCraft: Discord IPC is disabled.')
@@ -42,6 +45,14 @@ build = SOURCE / 'fabric/build.gradle'
 code = build.read_text(encoding='utf-8')
 code = code.replace('runtimeOnly "maven.modrinth:e4mc:AouleFRY"', '// MaxCraft: LAN tunnel dependency omitted.')
 build.write_text(code, encoding='utf-8')
+
+# Max's Qt/Nitrous host does not use Skyrim's frame pacing. The upstream 260 FPS
+# override otherwise renders/copies HUD frames that Max can never present.
+limiter = SOURCE / 'fabric/src/client/java/dev/skycraft/client/mixin/FramerateLimitTrackerMixin.java'
+code = limiter.read_text(encoding='utf-8')
+code = code.replace('cir.setReturnValue(260);',
+                    'cir.setReturnValue(Math.clamp(Integer.getInteger("maxcraft.backendFps", 60), 30, 120));')
+limiter.write_text(code, encoding='utf-8')
 gradle_zip = ROOT / '.runtime/gradle-9.7.1-bin.zip'
 if gradle_zip.exists():
     expected = 'acd53f1edaf02f1a8ff99879f8a34b302661a057d9b063ae9e35b552f804d20a'

@@ -12,7 +12,8 @@ import qtmax
 from pymxs import runtime as rt
 from .protocol import Link, ProtocolError
 from .geometry import collision_packets
-from .scene import Scene, create_demo
+from .scene import create_demo
+from .atlas_scene import AtlasScene as Scene
 from . import backend
 
 K = QtCore.Qt.Key
@@ -383,8 +384,10 @@ class Panel(QtWidgets.QDialog):
             finally:
                 if isinstance(pixels, memoryview):
                     pixels.release()
-            self.overlay.image = image.mirrored(False, True) if flags & 1 else image
-            self.overlay.update()
+            image = image.mirrored(False, True) if flags & 1 else image
+            if image != self.overlay.image:
+                self.overlay.image = image
+                self.overlay.update()
         if self.playing and self.player:
             menu = bool(self.player['flags'] & 2)
             if menu != self.overlay.screen_open:

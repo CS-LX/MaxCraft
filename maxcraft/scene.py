@@ -63,8 +63,10 @@ class Scene:
                                  rt.viewport.getGridVisibility(self.viewport),
                                  settings.ShowMaterialOption, settings.TransparencyEnabled)
         self.previous_progressive = settings.ProgressiveRenderingEnabled
-        # Allow background refinement while the Qt game overlay owns focus.
-        settings.ProgressiveRenderingEnabled = True
+        # Camera changes already request redraws. Progressive refinement repeats
+        # expensive full-viewport passes between Qt ticks (~20 Hz vs ~58 Hz here).
+        # Keep background drawing allowed, but use one-pass interactive redraws.
+        settings.ProgressiveRenderingEnabled = False
         settings.TextureSizeLimit = max(4096, settings.TextureSizeLimit)
         settings.UseTextureEnabled = True
         settings.ShowMaterialOption = rt.Name('Realistic')
@@ -187,12 +189,12 @@ class Scene:
         x, y, w, h = struct.unpack_from('<4I', data)
         atlas = self.textures.get(0)
         if atlas is None:
-            return
+            return False
         if not (w and h and x+w <= atlas.width() and y+h <= atlas.height() and len(data) == 16+w*h*4):
             raise ProtocolError('Invalid animated atlas patch')
         image = QtGui.QImage(data[16:], w, h, w*4, QtGui.QImage.Format_RGBA8888)
         if atlas.copy(x, y, w, h) == image:
-            return
+            return False
         painter = QtGui.QPainter(atlas)
         painter.setCompositionMode(QtGui.QPainter.CompositionMode_Source)
         painter.drawImage(x, y, image)
@@ -201,6 +203,7 @@ class Scene:
         for key in self.sprite_maps:
             if key[0] == 0 and area.intersects(QtCore.QRect(*key[1])):
                 self.dirty_sprites.add(key)
+        return True
 
     def face_material(self, texture, vertices, dynamic=False):
         flags = vertices[0][7]
@@ -232,7 +235,7 @@ class Scene:
                 # opacity maps made entire chunk objects transparent in Nitrous.
                 if self.cutout_template is None:
                     self.cutout_template = rt.DirectX_9_Shader(
-                        effectFile=str(Path(__file__).parent / 'shaders/voxel.fx'))
+                        effectFile=str(Path(__file__).parent / 'shaders/cutout.fx'))
                 # Max's first effect clone after bitmap I/O waits ~1 s; later
                 # clones cost ~10 ms. Batch clones before writing new sprites,
                 # so a chunk doesn't pay that wait once per material.

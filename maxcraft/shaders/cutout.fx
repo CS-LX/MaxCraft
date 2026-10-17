@@ -26,8 +26,16 @@ float4 CutoutPS(VertexOut v):SV_Target {
     return float4(color.rgb,1);
 }
 BlendState SolidBlend { BlendEnable[0]=false; RenderTargetWriteMask[0]=15; };
+DepthStencilState WriteDepth {
+    DepthEnable=true; DepthWriteMask=ALL; DepthFunc=LESS_EQUAL; StencilEnable=false;
+};
+RasterizerState FrontFaces {
+    CullMode=BACK; FrontCounterClockwise=false; FillMode=SOLID; DepthClipEnable=true;
+};
 technique11 Cutout {
     pass P0 {
+        SetDepthStencilState(WriteDepth,0);
+        SetRasterizerState(FrontFaces);
         SetBlendState(SolidBlend,float4(0,0,0,0),0xffffffff);
         SetVertexShader(CompileShader(vs_5_0,VS()));
         SetGeometryShader(NULL);
