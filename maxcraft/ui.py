@@ -10,9 +10,10 @@ import traceback
 from PySide6 import QtCore, QtGui, QtWidgets
 import qtmax
 from pymxs import runtime as rt
-from .protocol import Link, ProtocolError
+from .protocol import Link, ProtocolError, QpcClock
+from .motion import MotionClock
 from .geometry import collision_packets
-from .scene import create_demo
+from .scene import create_demo, suspend_redraw
 from .atlas_scene import AtlasScene as Scene
 from . import backend
 
@@ -164,13 +165,14 @@ class Panel(QtWidgets.QDialog):
         self.teleport = int(time.time()) & 0x7fffffff
         self.epoch = 1
         self.player = None
+        self.clock = QpcClock()
+        self.motion = MotionClock(self.clock.frequency)
         self.collision = deque()
         self.pending_meshes = {}
         self.future = None
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='MaxCraft-collision')
         self.render_width, self.render_height = 1280, 720
         self.last_status = 0.0
-        self.last_dynamic = 0.0
         self.ticks = 0
         self.mesh_updates = 0
         self.error_count = 0
@@ -301,6 +303,8 @@ class Panel(QtWidgets.QDialog):
                 pass
         self.overlay.hide()
         self.overlay.unsetCursor()
+        self.scene.release_camera()
+        self.motion.reset()
         if was_playing:
             self.show()
             self.raise_()
@@ -367,15 +371,18 @@ class Panel(QtWidgets.QDialog):
         for data in patches.values():
             self.scene.consume(7, data, self.player)
         self.scene.flush_textures()
-        # One latest geometry update per UI tick; stale dynamic frames are replaced.
-        if self.pending_meshes:
-            key = next(iter(self.pending_meshes))
-            kind, data = self.pending_meshes.pop(key)
-            if kind == 2 or time.monotonic() - self.last_dynamic > .15:
-                self.scene.consume(kind, data, self.player)
-                self.mesh_updates += 1
-                if kind != 2:
-                    self.last_dynamic = time.monotonic()
+        # Keep the latest packet per stream, but present every host frame. The
+        # former 150 ms gate reduced animals and moving pistons to ~6 FPS and
+        # discarded packets even when no replacement arrived afterwards.
+        static = next((k for k in self.pending_meshes if k[0] == 2), None)
+        keys = ([static] if static is not None else [])
+        keys += [k for k in self.pending_meshes if k[0] in (5, 6)]
+        if keys:
+            with suspend_redraw():
+                for key in keys:
+                    kind, data = self.pending_meshes.pop(key)
+                    self.scene.consume(kind, data, self.player)
+                    self.mesh_updates += 1
         frame = self.link.overlay()
         if frame:
             w, h, flags, _, pixels = frame
@@ -395,7 +402,12 @@ class Panel(QtWidgets.QDialog):
                 self.overlay.setCursor(QtCore.Qt.ArrowCursor if menu else QtCore.Qt.BlankCursor)
                 if self.overlay.isVisible():
                     QtGui.QCursor.setPos(self.overlay.mapToGlobal(self.overlay.rect().center()))
-            self.scene.camera(self.player, self.yaw, self.pitch, self.render_width/self.render_height)
+            state = self.motion.sample(self.player, self.clock())
+            self.scene.camera(state, self.yaw, self.pitch, self.render_width/self.render_height)
+        elif self.scene.geometry_changed:
+            # Native Max navigation does not run camera(), but incoming mobs,
+            # redstone and animated textures still need a viewport repaint.
+            self.scene.redraw()
         now = time.monotonic()
         if now - self.last_status > 1:
             self.last_status = now
@@ -425,6 +437,7 @@ class Panel(QtWidgets.QDialog):
         self.pending_meshes.clear()
         self.collision.clear()
         self.player = None
+        self.motion.reset()
         self.units.setEnabled(True)
         self.connect_button.setEnabled(True)
         self.play_button.setEnabled(False)

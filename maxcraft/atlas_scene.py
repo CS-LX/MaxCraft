@@ -1,12 +1,13 @@
 """Shared-atlas cutout batches: original UVs, vertex tint and explicit depth."""
 from pathlib import Path
+from itertools import chain
 import math
 import struct
 import time
 import pymxs
 from pymxs import runtime as rt
-from .scene import Scene, suspend_redraw
-from .geometry import to_max
+from .scene import Scene, suspend_redraw, point_array
+from .geometry import HEIGHT_OFFSET
 from .protocol import VERTEX, ProtocolError
 from .textures import region_for_uv
 
@@ -45,10 +46,6 @@ class AtlasScene(Scene):
         if not count:
             self.atlas_tiles.pop(key, None)
             return super()._mesh(key, data, count, origin, texture)
-        if not key.endswith(':solid') or texture not in self.textures or any(
-                struct.unpack_from('<I', data, i+28)[0] & 4 for i in range(0,len(data),32)):
-            self.atlas_tiles.pop(key, None)
-            return super()._mesh(key, data, count, origin, texture)
         packet = (data,count,origin,texture)
         node = self.nodes.get(key)
         valid = node is not None and rt.isValidNode(node)
@@ -56,9 +53,14 @@ class AtlasScene(Scene):
             self.skipped_meshes += 1
             return
         verts = list(VERTEX.iter_unpack(data))
-        if not all(math.isfinite(x) for v in verts for x in v[:5]):
+        if not key.endswith(':solid') or texture not in self.textures or any(v[7] & 4 for v in verts):
+            self.atlas_tiles.pop(key, None)
+            return super()._mesh(key, data, count, origin, texture)
+        if not all(map(math.isfinite, chain.from_iterable(v[:5] for v in verts))):
             raise ProtocolError('Non-finite mesh vertex')
-        points = rt.Array(*(rt.point3(*to_max(tuple(v[a]+origin[a] for a in range(3)),self.units)) for v in verts))
+        x, y, z = origin
+        scale = self.units
+        points = point_array(((v[0]+x)*scale, -(v[2]+z)*scale, (v[1]+y-HEIGHT_OFFSET)*scale) for v in verts)
         layout = ('atlas',count,texture,b''.join(data[i+12:i+24] for i in range(0,len(data),32)))
         if valid and self.mesh_layouts.get(key) == layout:
             with pymxs.undo(False), suspend_redraw():
@@ -66,9 +68,9 @@ class AtlasScene(Scene):
                 rt.update(node)
             self.reused_meshes += 1
         else:
-            uv = rt.Array(*(rt.point3(v[3],1-v[4],0) for v in verts))
-            colors = rt.Array(*(rt.point3(*(((v[5]>>(8*c))&255)/255 for c in range(3))) for v in verts))
-            faces = rt.Array(*(rt.point3(i+1,i+2,i+3) for i in range(0,count,3)))
+            uv = point_array((v[3],1-v[4],0) for v in verts)
+            colors = point_array(tuple(((v[5]>>(8*c))&255)/255 for c in range(3)) for v in verts)
+            faces = rt.execute(f'for i=1 to {count} by 3 collect [i,i+1,i+2]')
             mat = self.atlas_material(texture)
             with pymxs.undo(False), suspend_redraw():
                 if not valid:

@@ -35,7 +35,7 @@ Minecraft 负责原版物理、方块、背包和存档；Max 负责宿主场景
 
 ## 安装和依赖
 
-- 本地安装包：`dist/MaxCraft-0.1.3.zip`。解压后在 Max 运行 `Install_MaxCraft.ms`。
+- 本地安装包：`dist/MaxCraft-0.1.4.zip`。解压后在 Max 运行 `Install_MaxCraft.ms`。
 - 安装器只复制到当前用户的 `scripts/MaxCraft`，并注册 `MaxCraft-Play.mcr`。游戏启动路径指向原解压目录，因此请保留该目录。
 - Max 端：Max 2027.2、Python 3.13.9、PySide6 6.8.3 已实测。不需要 pip。
 - Minecraft 端：JDK 25、Git、Python 3、PowerShell；使用固定 SkyCraft 源码和 Fabric Loom `runClient`。
@@ -61,11 +61,12 @@ Minecraft 方块、背包和游戏逻辑由真实 Minecraft 世界保存：
 已验证真实 Minecraft ↔ Max 2027 的握手、场景碰撞、移动/跳跃、原版背包/HUD、聊天命令、放置/挖掉方块、原生 Max 网格与 UV 更新、F8 释放输入。详细数据见 [验证记录](docs/validation.md)。
 
 - 这是 **0.1 开发版**。MC 逻辑真实运行；Max 侧使用 Python 工具插件加小型 C 原子操作 DLL，暂未做完整 Nitrous C++ 渲染插件。
-- 适合小型场景/模型。碰撞导出有明确面数、采样量和区域上限；实体显示最多约 6 次/秒，复杂建筑会降低帧率。
+- 适合小型场景/模型。碰撞导出有明确面数、采样量和区域上限；动态实体按每次宿主更新处理最新数据，复杂建筑和大量实体仍会降低帧率。
 - 原版方块可挖放；**不会把任意 Max 模型挖成洞**。不实现 Max 角色的战斗、AI、布料或物理互动。
 - 不透明方块、树叶和裁切粒子共享原始图集，保留原始 UV 与逐顶点颜色；DX11 明确开启深度测试、深度写入和背面剔除。修复金块错误覆盖、活塞缺三角面和红石火把实心红壳。玻璃、水等混合材质仍分离绘制，多层半透明排序受 Max 视口限制，混合面的着色/淡出仍有量化。未接入动态方块灯或 ragdoll。
 - 复用节点、材质和拓扑，跳过重复数据、静止相机和不变 HUD；动态图集仅在使用的区域改变时上传，最多 10 次/秒。
-- HUD / 手臂画面默认限制为 720p；Max 世界视口仍使用原分辨率。连接期间允许后台绘制，关闭重复渐进细化，停止时恢复原设置。Minecraft 后台上限为 60 FPS，并释放等待宿主期间的 CPU；本次近距离转向实测约 58 次宿主更新/秒，详见验证记录，非呈现 FPS 保证。
+- 第一人称使用隐藏的 Max 原生相机，确保行走时真正刷新底层画面；读取 Minecraft 物理 tick，在宿主时钟上插值，不预测穿过碰撞。F8 释放为可自由导航的透视视图，生物与红石继续更新；停止连接时删除本次相机并恢复原视图。
+- HUD / 手臂画面默认限制为 720p；Max 世界视口仍使用原分辨率。连接期间允许后台绘制，关闭重复渐进细化，停止时恢复原设置。Minecraft 后台上限为 60 FPS，并释放等待宿主期间的 CPU。0.1.4 实测及底层窗口刷新采样见验证记录；桥接回调频率不等于呈现 FPS。
 - 游戏时请保持当前视口布局稳定。场景新建/加载前应先停止连接。
 - `Local\MaxCraft_v11` 是本项目独立桥接名。不会占用 SkyCraft 原有的默认连接；同一 MaxCraft 连接仅允许一个宿主。
 
@@ -79,6 +80,8 @@ python scripts/package.py
 ```
 
 `scripts/integration_probe.py` 必须在 Max 的 Python 环境执行，用真实后台 Minecraft 验证移动、跳跃、背包、挖放方块和输入释放，输出 `logs/integration.json`。它不会随安装自动运行。
+
+`scripts/profile_motion.py` 在游戏中短距离往返行走并恢复玩家位置，记录真实相机与动态网格更新；传入 `CAPTURE=True` 可额外采样现有视口窗口，检查重复旧画面，采样本身有开销。`scripts/validate_playback.py` 检查背包、Esc、F5、F8 及返回游戏，`scripts/validate_scene_updates.py` 检查原生网格和映射更新；均在 Max 内手动运行。
 
 日志：项目 `logs/minecraft-dev.log`、`%LOCALAPPDATA%/MaxCraft/maxcraft.log`。
 

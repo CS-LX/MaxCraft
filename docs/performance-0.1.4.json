@@ -1,0 +1,218 @@
+{
+  "notes": [
+    "Host callback / consumed dynamic packet cadence is not presented FPS.",
+    "Window capture reads the existing HWND surface without requesting a redraw, but adds overhead.",
+    "Before and after use the same static world and a tagged temporary cow; simulation pose is not locked.",
+    "Installed no-cow runs are separate from cow runs."
+  ],
+  "runs": {
+    "before-cow": {
+      "seconds": 12.307945700000005,
+      "bridge_hz": 52.16142609403938,
+      "dynamic_updates_hz": 5.037396289455516,
+      "dynamic_mean_ms": 38.2232999999976,
+      "bridge_mean_ms": 9.654660747663327,
+      "raw_camera": {
+        "changes": 573,
+        "repeated_moving_samples": 7,
+        "moving_samples": 183,
+        "max_moving_step": 0.25831953511136074
+      },
+      "displayed_camera": {
+        "changes": 573,
+        "repeated_moving_samples": 7,
+        "moving_samples": 179,
+        "max_moving_step": 0.25831953511136074
+      },
+      "errors": 0,
+      "mesh_vertices": {
+        "section_-1_6_-1": 684,
+        "section_0_6_-1": 276,
+        "section_-1_6_0": 96,
+        "section_0_6_0": 72,
+        "entities_0": 6,
+        "entities_1": 360
+      },
+      "viewport_repeated_moving": null,
+      "capture": false
+    },
+    "before-cow-capture": {
+      "seconds": 12.017983700000059,
+      "bridge_hz": 41.68752533754872,
+      "dynamic_updates_hz": 5.574978438354819,
+      "dynamic_mean_ms": 20.694786567169917,
+      "bridge_mean_ms": 9.5807141716575,
+      "raw_camera": {
+        "changes": 465,
+        "repeated_moving_samples": 0,
+        "moving_samples": 142,
+        "max_moving_step": 0.4732240504493648
+      },
+      "displayed_camera": {
+        "changes": 465,
+        "repeated_moving_samples": 0,
+        "moving_samples": 139,
+        "max_moving_step": 0.4732240504493648
+      },
+      "errors": 0,
+      "mesh_vertices": {
+        "section_-1_6_-1": 684,
+        "section_0_6_-1": 276,
+        "section_-1_6_0": 96,
+        "section_0_6_0": 72,
+        "entities_0": 360
+      },
+      "viewport_repeated_moving": 127,
+      "viewport_moving_samples": 142,
+      "viewport_repeat_percent": 89.43661971830986,
+      "capture": true
+    },
+    "bulk-fast-normal": {
+      "seconds": 12.000941900000043,
+      "bridge_hz": 49.91274893181491,
+      "dynamic_updates_hz": 49.246134588819054,
+      "dynamic_mean_ms": 2.8264637901864265,
+      "bridge_mean_ms": 11.989650751251359,
+      "raw_camera": {
+        "changes": 551,
+        "repeated_moving_samples": 0,
+        "moving_samples": 165,
+        "max_moving_step": 0.3532838752508738
+      },
+      "displayed_camera": {
+        "changes": 550,
+        "repeated_moving_samples": 0,
+        "moving_samples": 164,
+        "max_moving_step": 0.19540366142793175
+      },
+      "errors": 0,
+      "mesh_vertices": {
+        "section_-1_6_-1": 684,
+        "section_0_6_-1": 276,
+        "section_-1_6_0": 96,
+        "section_0_6_0": 72,
+        "entities_0": 360
+      },
+      "viewport_repeated_moving": null,
+      "capture": false
+    },
+    "installed-0.1.4-normal": {
+      "seconds": 11.998420800000076,
+      "capture": false,
+      "bridge_hz": 58.757732517598946,
+      "dynamic_updates_hz": 0.0,
+      "dynamic_mean_ms": 0.0,
+      "bridge_mean_ms": 8.517477446804337,
+      "raw_camera": {
+        "changes": 640,
+        "repeated_moving_samples": 3,
+        "moving_samples": 209,
+        "max_moving_step": 0.1505004284576179
+      },
+      "displayed_camera": {
+        "changes": 655,
+        "repeated_moving_samples": 0,
+        "moving_samples": 211,
+        "max_moving_step": 0.14675096104381247
+      },
+      "errors": 0,
+      "mesh_vertices": {
+        "section_-1_6_-1": 684,
+        "section_0_6_-1": 276,
+        "section_-1_6_0": 96,
+        "section_0_6_0": 72
+      },
+      "viewport_repeated_moving": null
+    },
+    "installed-0.1.4-capture": {
+      "seconds": 12.00182790000008,
+      "capture": true,
+      "bridge_hz": 34.911348795461166,
+      "dynamic_updates_hz": 0.0,
+      "dynamic_mean_ms": 0.0,
+      "bridge_mean_ms": 10.34463556086182,
+      "raw_camera": {
+        "changes": 384,
+        "repeated_moving_samples": 0,
+        "moving_samples": 125,
+        "max_moving_step": 0.33502686285186156
+      },
+      "displayed_camera": {
+        "changes": 385,
+        "repeated_moving_samples": 0,
+        "moving_samples": 123,
+        "max_moving_step": 0.22169253823024215
+      },
+      "errors": 0,
+      "mesh_vertices": {
+        "section_-1_6_-1": 684,
+        "section_0_6_-1": 276,
+        "section_-1_6_0": 96,
+        "section_0_6_0": 72
+      },
+      "viewport_repeated_moving": 1,
+      "viewport_moving_samples": 125,
+      "viewport_repeat_percent": 0.8
+    },
+    "installed-0.1.4-cow-normal": {
+      "seconds": 11.99999170000001,
+      "capture": false,
+      "bridge_hz": 47.250032681272565,
+      "dynamic_updates_hz": 46.33336538057768,
+      "dynamic_mean_ms": 3.3428742805792333,
+      "bridge_mean_ms": 12.548286596121589,
+      "raw_camera": {
+        "changes": 510,
+        "repeated_moving_samples": 3,
+        "moving_samples": 173,
+        "max_moving_step": 0.34073028038682907
+      },
+      "displayed_camera": {
+        "changes": 514,
+        "repeated_moving_samples": 0,
+        "moving_samples": 174,
+        "max_moving_step": 0.20888541093352497
+      },
+      "errors": 0,
+      "mesh_vertices": {
+        "section_-1_6_-1": 684,
+        "section_0_6_-1": 276,
+        "section_-1_6_0": 96,
+        "section_0_6_0": 72,
+        "entities_0": 360
+      },
+      "viewport_repeated_moving": null
+    },
+    "installed-0.1.4-cow-capture": {
+      "seconds": 12.037637099999984,
+      "capture": true,
+      "bridge_hz": 25.171052880469407,
+      "dynamic_updates_hz": 25.171052880469407,
+      "dynamic_mean_ms": 5.2787343234251285,
+      "bridge_mean_ms": 17.403571287132333,
+      "raw_camera": {
+        "changes": 279,
+        "repeated_moving_samples": 0,
+        "moving_samples": 79,
+        "max_moving_step": 0.6220390406972571
+      },
+      "displayed_camera": {
+        "changes": 275,
+        "repeated_moving_samples": 0,
+        "moving_samples": 79,
+        "max_moving_step": 0.4328922916222204
+      },
+      "errors": 0,
+      "mesh_vertices": {
+        "section_-1_6_-1": 684,
+        "section_0_6_-1": 276,
+        "section_-1_6_0": 96,
+        "section_0_6_0": 72,
+        "entities_0": 360
+      },
+      "viewport_repeated_moving": 0,
+      "viewport_moving_samples": 79,
+      "viewport_repeat_percent": 0.0
+    }
+  }
+}

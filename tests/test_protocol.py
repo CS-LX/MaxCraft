@@ -119,6 +119,22 @@ class PlayerTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             self.link.read_player()
 
+    def test_physics_tick_offsets(self):
+        protocol.MC_TICK.pack_into(self.link.m, MC+0x68, 123000,
+                                  1,100,2, 1,100,3, 1.6,1.62, 0,0,0,0,50)
+        state = self.link.read_player()
+        self.assertEqual(state['tick_qpc'], 123000)
+        self.assertEqual(state['tick_prev'], (1,100,2))
+        self.assertEqual(state['tick_cur'], (1,100,3))
+        self.assertEqual(state['tick_ms'], 50)
+        self.assertAlmostEqual(state['tick_eye'][1],1.62,places=5)
+
+    def test_nonfinite_physics_tick_rejected(self):
+        protocol.MC_TICK.pack_into(self.link.m, MC+0x68, 123000,
+                                  1,100,2, 1,float('nan'),3, 1.6,1.62, 0,0,0,0,50)
+        with self.assertRaises(ProtocolError):
+            self.link.read_player()
+
 
 class OverlayTests(unittest.TestCase):
     def test_consumer_slot_stays_owned_until_next_exchange(self):

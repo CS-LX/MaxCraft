@@ -24,6 +24,21 @@ RENDER_BYTES = 64 << 20
 MAPPING_BYTES = RENDER + RENDER_BYTES
 VERTEX = struct.Struct('<5fIII')
 MC_SNAPSHOT = struct.Struct('<IIdddffffIIQfffIddd')
+MC_TICK = struct.Struct('<q6d7f')
+
+
+class QpcClock:
+    """The same Windows clock used by SkyCraft's tick timestamps."""
+    def __init__(self):
+        self.counter = ctypes.windll.kernel32.QueryPerformanceCounter
+        frequency = ctypes.c_int64()
+        ctypes.windll.kernel32.QueryPerformanceFrequency(ctypes.byref(frequency))
+        self.frequency = frequency.value
+
+    def __call__(self):
+        value = ctypes.c_int64()
+        self.counter(ctypes.byref(value))
+        return value.value / self.frequency
 
 
 class ProtocolError(RuntimeError):
@@ -171,10 +186,15 @@ class Link:
             v = MC_SNAPSHOT.unpack_from(raw)
             if not all(math.isfinite(v[i]) for i in (2,3,4,5,6,7,8,12,13,14,16,17,18)):
                 raise ProtocolError('Non-finite player state')
+            tick = MC_TICK.unpack_from(raw, 0x68)
+            if tick[0] and (not all(math.isfinite(x) for x in tick[1:]) or tick[-1] <= 0):
+                raise ProtocolError('Invalid physics tick')
             return dict(flags=v[1], pos=v[2:5], yaw=v[5], pitch=v[6], eye_height=v[7],
                         sensitivity=v[8], ack=v[9], gui_scale=v[10], frame=v[11],
                         fov=v[12], eye=v[16:19], camera_mode=struct.unpack_from('<I', raw, 0xC0)[0],
-                        camera_distance=struct.unpack_from('<f', raw, 0xC4)[0])
+                        camera_distance=struct.unpack_from('<f', raw, 0xC4)[0],
+                        tick_qpc=tick[0], tick_prev=tick[1:4], tick_cur=tick[4:7],
+                        tick_eye=tick[7:9], tick_ms=tick[-1])
         return None
 
     def input(self, kind, code=0, a=0, b=0, c=0):

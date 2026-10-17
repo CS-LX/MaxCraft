@@ -1,6 +1,7 @@
 """Max main-thread adapter: native geometry, camera and texture materials."""
 from pathlib import Path
 from contextlib import contextmanager
+from itertools import chain
 import math
 import struct
 import time
@@ -24,6 +25,29 @@ def suspend_redraw():
         rt.enableSceneRedraw()
 
 
+_point_builder = None
+_camera_setter = None
+
+
+def point_array(points):
+    """One Python/MAXScript crossing for an entire numeric point array.
+
+    Calling rt.point3 once per vertex dominates animated mesh update time.
+    Pass numeric values directly, then build Point3 values in one cached
+    MAXScript function. Parsing a new text expression each frame is expensive.
+    """
+    global _point_builder
+    if _point_builder is None:
+        _point_builder = rt.execute('fn MaxCraftPointArray values = '
+                                    '(for i=1 to values.count by 3 collect '
+                                    '[values[i],values[i+1],values[i+2]])')
+    points = list(points)
+    values = list(chain.from_iterable(points))
+    if (points and set(map(len, points)) != {3}) or not all(map(math.isfinite, values)):
+        raise ProtocolError('Invalid mesh point')
+    return _point_builder(rt.Array(*values))
+
+
 class Scene:
     def __init__(self, units=70.0):
         self.units = units
@@ -41,6 +65,7 @@ class Scene:
         self.mesh_layouts = {}
         self.last_camera = None
         self.last_fov = None
+        self.game_camera = None
         self.geometry_changed = False
         self.skipped_meshes = 0
         self.reused_meshes = 0
@@ -48,7 +73,6 @@ class Scene:
         self.cache = Path.home() / 'AppData' / 'Local' / 'MaxCraft' / 'cache' / self.id
         self.cache.mkdir(parents=True, exist_ok=True)
         self.previous = None
-        self.last_dynamic = 0.0
 
     def capture_view(self):
         self.last_camera = self.last_fov = None
@@ -100,10 +124,11 @@ class Scene:
         if not self.previous or not (state['flags'] & 1):
             return
         signature = (state['eye'], yaw, pitch, aspect, state['fov'], state['camera_mode'], state['camera_distance'])
-        if signature == self.last_camera:
+        attached = (self.game_camera is not None and rt.isValidNode(self.game_camera)
+                    and rt.viewport.getCamera() == self.game_camera)
+        if signature == self.last_camera and attached:
             if self.geometry_changed:
-                rt.redrawViews()
-                self.geometry_changed = False
+                self.redraw()
             return
         right, up, back = camera_axes(yaw, pitch)
         eye = to_max(state['eye'], self.units)
@@ -114,17 +139,46 @@ class Scene:
             if sign < 0:
                 right, back = tuple(-x for x in right), tuple(-x for x in back)
         camera = rt.matrix3(rt.point3(*right), rt.point3(*up), rt.point3(*back), rt.point3(*eye))
-        if int(rt.viewport.activeViewport) != self.viewport:
-            rt.viewport.activeViewport = self.viewport
-        rt.viewport.setTM(rt.inverse(camera))
         vfov = max(10.0, min(140.0, state['fov'] or 70.0))
         hfov = math.degrees(2 * math.atan(math.tan(math.radians(vfov) / 2) * aspect))
-        if hfov != self.last_fov:
-            rt.viewport.setFOV(hfov)
-            self.last_fov = hfov
+        if int(rt.viewport.activeViewport) != self.viewport:
+            rt.viewport.activeViewport = self.viewport
+        # A perspective view's setTM can change the reported transform without
+        # invalidating Nitrous's displayed surface. A real camera node sends the
+        # transform notification, so redrawViews presents each translated frame.
+        global _camera_setter
+        if _camera_setter is None:
+            _camera_setter = rt.execute('fn MaxCraftSetCameraTransform node tm fov = '
+                                        '(with undo off with animate off '
+                                        '(node.transform=tm; if fov != undefined do node.fov=fov))')
+        with pymxs.undo(False):
+            if self.game_camera is None or not rt.isValidNode(self.game_camera):
+                self.game_camera = rt.FreeCamera(name=f'MaxCraft_{self.id}_camera')
+                rt.setUserProp(self.game_camera, 'MaxCraftOwned', self.id)
+                self.game_camera.isHidden = True
+            # pymxs.animate(False) toggles Max's UI state on entry/exit and
+            # costs milliseconds per frame. Use a native scoped expression.
+            _camera_setter(self.game_camera, camera, hfov if hfov != self.last_fov else rt.undefined)
+            if not attached:
+                rt.viewport.setCamera(self.game_camera)
+        self.last_fov = hfov
         rt.redrawViews()
         self.last_camera = signature
         self.geometry_changed = False
+
+    def redraw(self):
+        rt.redrawViews()
+        self.geometry_changed = False
+
+    def release_camera(self):
+        """Leave a navigable perspective view when F8 returns control to Max."""
+        if self.game_camera is not None and rt.isValidNode(self.game_camera):
+            if rt.viewport.getCamera() == self.game_camera:
+                matrix, fov = rt.viewport.getTM(), rt.viewport.getFOV()
+                rt.viewport.setType(rt.Name('view_persp_user'))
+                rt.viewport.setTM(matrix)
+                rt.viewport.setFOV(fov)
+        self.last_camera = self.last_fov = None
 
     def snapshot(self, selection_only=False):
         source = list(rt.selection if selection_only else rt.geometry)
@@ -428,6 +482,11 @@ class Scene:
         # host edits. These are consumed by the transport but unsupported in v0.1.
 
     def clear(self):
+        self.release_camera()
+        if self.game_camera is not None and rt.isValidNode(self.game_camera):
+            with pymxs.undo(False):
+                rt.delete(self.game_camera)
+        self.game_camera = None
         for key in list(self.nodes):
             self.delete_key(key)
         self.raw_meshes.clear()
