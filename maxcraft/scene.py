@@ -2,6 +2,7 @@
 from pathlib import Path
 from contextlib import contextmanager
 from itertools import chain
+from collections import defaultdict
 import math
 import struct
 import time
@@ -27,6 +28,19 @@ def suspend_redraw():
 
 _point_builder = None
 _camera_setter = None
+
+
+def set_effect_texture(material, path, bitmap=None):
+    """Bind a saved texture through the effect API and release temporary loads."""
+    owned = bitmap is None
+    if owned:
+        bitmap = rt.openBitmap(str(path))
+    try:
+        material.seteffectbitmap(1, bitmap)
+        rt.notifyDependents(material, partID=rt.Name('mtl'))
+    finally:
+        if owned:
+            rt.close(bitmap)
 
 
 def point_array(points):
@@ -58,6 +72,7 @@ class Scene:
         self.cutout_pool = []
         self.textures = {}
         self.sprite_maps = {}
+        self.sprite_tiles = defaultdict(set)
         self.raw_meshes = {}
         self.render_packets = {}
         self.dirty_sprites = set()
@@ -227,15 +242,19 @@ class Scene:
             raise OSError('Could not save Minecraft sprite')
         if tex is not None:
             if opacity is None:
-                tex.Sprite = rt.openBitmap(str(path))
+                set_effect_texture(tex, path)
             else:
                 tex.reload()
                 opacity.reload()
             self.geometry_changed = True
 
     def flush_textures(self, budget=2):
-        for _ in range(min(budget, len(self.dirty_sprites))):
-            self.write_sprite(self.dirty_sprites.pop())
+        # Retain stale cache entries for possible reuse, but never upload a
+        # bitmap which no current mesh references (e.g. removed flowing water).
+        active = set().union(*self.mesh_material_keys.values())
+        for key in list(self.dirty_sprites.intersection(active))[:budget]:
+            self.write_sprite(key)
+            self.dirty_sprites.discard(key)
 
     def atlas_patch(self, data):
         if len(data) < 16:
@@ -253,10 +272,11 @@ class Scene:
         painter.setCompositionMode(QtGui.QPainter.CompositionMode_Source)
         painter.drawImage(x, y, image)
         painter.end()
-        area = QtCore.QRect(x, y, w, h)
-        for key in self.sprite_maps:
-            if key[0] == 0 and area.intersects(QtCore.QRect(*key[1])):
-                self.dirty_sprites.add(key)
+        candidates=set()
+        for a in range(x//16,(x+w-1)//16+1):
+            for b in range(y//16,(y+h-1)//16+1):
+                candidates.update(self.sprite_tiles.get((0,a,b),()))
+        self.dirty_sprites.update(candidates.intersection(self.sprite_maps))
         return True
 
     def face_material(self, texture, vertices, dynamic=False):
@@ -284,6 +304,10 @@ class Scene:
             path = self.cache / f'sprite-{self.sprite_id}.png'
             self.sprite_id += 1
             self.sprite_maps[key] = (path, None, None)
+            x,y,w,h=rect
+            for a in range(x//16,(x+w-1)//16+1):
+                for b in range(y//16,(y+h-1)//16+1):
+                    self.sprite_tiles[(texture,a,b)].add(key)
             if not flags & 2:
                 # Alpha-tested surfaces write depth. Treating leaves as blended
                 # opacity maps made entire chunk objects transparent in Nitrous.
@@ -298,7 +322,7 @@ class Scene:
                 mat = self.cutout_pool.pop()
                 mat.name = f'MaxCraft_{self.id}_cutout_{len(self.materials)}'
                 self.write_sprite(key)
-                mat.Sprite = rt.openBitmap(str(path))
+                set_effect_texture(mat, path)
                 self.materials[key] = mat
                 self.sprite_maps[key] = (path, mat, None)
                 return key, [rt.point3(*local_uv((v[3],v[4]), rect, image.width(), image.height()), 0) for v in vertices]
@@ -423,6 +447,15 @@ class Scene:
                         sprite = self.sprite_maps.pop(old, None)
                         self.dirty_sprites.discard(old)
                         if sprite:
+                            texture,(x,y,w,h),tint,flags=old
+                            for a in range(x//16,(x+w-1)//16+1):
+                                for b in range(y//16,(y+h-1)//16+1):
+                                    tile=(texture,a,b)
+                                    bucket=self.sprite_tiles.get(tile)
+                                    if bucket:
+                                        bucket.discard(old)
+                                        if not bucket:
+                                            self.sprite_tiles.pop(tile,None)
                             try: sprite[0].unlink(missing_ok=True)
                             except OSError: pass
             except Exception:
@@ -494,6 +527,7 @@ class Scene:
         self.dirty_sprites.clear()
         self.materials.clear()
         self.sprite_maps.clear()
+        self.sprite_tiles.clear()
         self.textures.clear()
         self.mesh_material_keys.clear()
         self.mesh_layouts.clear()

@@ -1,0 +1,208 @@
+{
+  "notes": [
+    "Same user world; four section vertex counts match across these performance samples. The later validation snapshot was taken while the world continued running.",
+    "Host callback cadence is not presented FPS. Particles vary with simulation.",
+    "Image compression and bitmap lifetime were additional bottlenecks beyond unused sprite updates."
+  ],
+  "before": {
+    "seconds": 20.053647799999908,
+    "bridge_hz": 1.9946495719347472,
+    "mode": "stationary_camera",
+    "mc_render_hz": 57.34617519312398,
+    "raw_meshes": {
+      "section_-1_6_-1": 672,
+      "section_0_6_-1": 1620,
+      "section_-1_6_0": 204,
+      "section_0_6_0": 3336,
+      "entities_0": 30
+    },
+    "materials": 129,
+    "errors": 0,
+    "hud_size": [
+      1088,
+      720
+    ],
+    "skipped_meshes": 0,
+    "reused_meshes": 0,
+    "timing": {
+      "update_bridge": {
+        "n": 40,
+        "mean_ms": 480.71151249999957,
+        "p95_ms": 539.1638999999486,
+        "max_ms": 565.581999999722
+      },
+      "camera": {
+        "n": 40,
+        "mean_ms": 73.965837500009,
+        "p95_ms": 84.20049999995172,
+        "max_ms": 176.83080000006157
+      },
+      "mesh": {
+        "n": 40,
+        "mean_ms": 17.456190000007155,
+        "p95_ms": 32.621800000015355,
+        "max_ms": 39.91660000019692
+      },
+      "atlas_patch": {
+        "n": 2240,
+        "mean_ms": 0.21180513393293918,
+        "p95_ms": 0.31829999988985946,
+        "max_ms": 0.8821000001262291
+      },
+      "flush_textures": {
+        "n": 40,
+        "mean_ms": 368.7167324999791,
+        "p95_ms": 413.58889999992243,
+        "max_ms": 422.2904000002927
+      },
+      "overlay": {
+        "n": 40,
+        "mean_ms": 0.0467925000066316,
+        "p95_ms": 0.06309999980658176,
+        "max_ms": 0.09240000008503557
+      },
+      "read": {
+        "n": 40,
+        "mean_ms": 4.022915000041394,
+        "p95_ms": 5.373999999847001,
+        "max_ms": 5.810800000290328
+      }
+    }
+  },
+  "after_hot_update": {
+    "seconds": 20.023306000000048,
+    "bridge_hz": 27.51793335226454,
+    "mode": "stationary_camera",
+    "mc_render_hz": 49.542268394639606,
+    "raw_meshes": {
+      "section_-1_6_-1": 672,
+      "section_0_6_-1": 1620,
+      "section_-1_6_0": 204,
+      "section_0_6_0": 3336,
+      "entities_0": 78
+    },
+    "materials": 131,
+    "errors": 0,
+    "hud_size": [
+      1088,
+      720
+    ],
+    "skipped_meshes": 0,
+    "reused_meshes": 187,
+    "timing": {
+      "update_bridge": {
+        "n": 551,
+        "mean_ms": 29.009338112520872,
+        "p95_ms": 52.88399999972171,
+        "max_ms": 82.27939999960654
+      },
+      "camera": {
+        "n": 551,
+        "mean_ms": 5.889809981851965,
+        "p95_ms": 9.70129999996061,
+        "max_ms": 16.53840000017226
+      },
+      "mesh": {
+        "n": 551,
+        "mean_ms": 11.056005444647955,
+        "p95_ms": 24.17539999987639,
+        "max_ms": 44.07949999995253
+      },
+      "atlas_patch": {
+        "n": 15453,
+        "mean_ms": 0.17527042645545451,
+        "p95_ms": 0.24849999999787542,
+        "max_ms": 1.0452999999870372
+      },
+      "flush_textures": {
+        "n": 551,
+        "mean_ms": 3.1315687840333752,
+        "p95_ms": 10.387799999989511,
+        "max_ms": 15.033199999834324
+      },
+      "overlay": {
+        "n": 551,
+        "mean_ms": 0.044707804007374945,
+        "p95_ms": 0.06050000001778244,
+        "max_ms": 0.29850000009901123
+      },
+      "read": {
+        "n": 551,
+        "mean_ms": 0.3392791288500165,
+        "p95_ms": 0.7570000002488086,
+        "max_ms": 8.02700000031109
+      }
+    }
+  },
+  "memory_bytes": {
+    "before_working_set": 14748676096,
+    "after_working_set": 1663946752,
+    "before_private": 16527650816,
+    "after_private": 3602931712
+  },
+  "installed_restart_rotating": {
+    "seconds": 20.015086299999894,
+    "bridge_hz": 26.87972422082451,
+    "mode": "rotating_camera",
+    "mc_render_hz": 46.315063852610265,
+    "raw_meshes": {
+      "section_0_6_-1": 1620,
+      "section_-1_6_-1": 672,
+      "entities_0": 114,
+      "section_-1_6_0": 204,
+      "section_0_6_0": 3336
+    },
+    "materials": 4,
+    "errors": 0,
+    "hud_size": [
+      1088,
+      720
+    ],
+    "skipped_meshes": 0,
+    "reused_meshes": 163,
+    "timing": {
+      "update_bridge": {
+        "n": 538,
+        "mean_ms": 26.767388289958625,
+        "p95_ms": 47.15390000001207,
+        "max_ms": 78.31899999973757
+      },
+      "camera": {
+        "n": 538,
+        "mean_ms": 6.831886988850895,
+        "p95_ms": 10.395499999958702,
+        "max_ms": 18.982199999754812
+      },
+      "mesh": {
+        "n": 538,
+        "mean_ms": 7.791017657986684,
+        "p95_ms": 17.952400000012858,
+        "max_ms": 26.608199999827775
+      },
+      "atlas_patch": {
+        "n": 15838,
+        "mean_ms": 0.1723734309881858,
+        "p95_ms": 0.23539999983768212,
+        "max_ms": 1.3167000001885754
+      },
+      "flush_textures": {
+        "n": 538,
+        "mean_ms": 3.1838782528039165,
+        "p95_ms": 10.492100000192295,
+        "max_ms": 24.916400000165595
+      },
+      "overlay": {
+        "n": 538,
+        "mean_ms": 0.04523234200924555,
+        "p95_ms": 0.06530000018756255,
+        "max_ms": 0.15170000006037299
+      },
+      "read": {
+        "n": 538,
+        "mean_ms": 0.3346788104084337,
+        "p95_ms": 0.6124999999883585,
+        "max_ms": 2.0900999998048064
+      }
+    }
+  }
+}

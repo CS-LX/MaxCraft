@@ -1,0 +1,79 @@
+{
+  "animation": {
+    "reactivated_sprite_refreshed": true,
+    "faces_with_verified_uvs": 1720,
+    "animated_images": [
+      [
+        64,
+        64
+      ],
+      [
+        48,
+        48
+      ]
+    ],
+    "unused_sprite_count": 121,
+    "animated_pixels_changed": 2,
+    "full_atlas_not_rewritten": true,
+    "unused_sprites_not_rewritten": true,
+    "errors": 0,
+    "passed": true
+  },
+  "mesh": {
+    "nested_redraw_exception_restored": true,
+    "original_atlas_uv_and_vertex_tint": true,
+    "position_update_keeps_node_material_and_uv": true,
+    "topology_update_keeps_node_and_correct_mapping": true,
+    "duplicate_packet_skipped": true,
+    "atlas_patches_upload_only_used_regions": true,
+    "restored_vertex_count": 672,
+    "passed": true
+  },
+  "surface_samples": 12,
+  "surface_colors": 8,
+  "surface_changes": 10,
+  "camera_unchanged": true,
+  "errors": 0,
+  "cleanup": {
+    "closed": true,
+    "owned_nodes_remaining": 0,
+    "native_models": 9
+  },
+  "unit_tests_passed": 26,
+  "installed_restart": {
+    "installed_animation_validation": {
+      "faces_with_verified_uvs": 1720,
+      "animated_images": [
+        [
+          64,
+          64
+        ],
+        [
+          48,
+          48
+        ]
+      ],
+      "unused_sprite_count": 0,
+      "animated_pixels_changed": 1,
+      "full_atlas_not_rewritten": true,
+      "unused_sprites_not_rewritten": true,
+      "errors": 0,
+      "passed": true
+    },
+    "playing": true,
+    "errors": 0,
+    "position": [
+      6.052914879642639,
+      105.11827441690893,
+      6.677128420790352
+    ],
+    "camera_attached": true,
+    "native_models": 9,
+    "static_vertices": {
+      "section_0_6_-1": 1620,
+      "section_-1_6_-1": 672,
+      "section_-1_6_0": 204,
+      "section_0_6_0": 3348
+    }
+  }
+}

@@ -57,7 +57,8 @@ class Profile(QtCore.QObject):
                            mode='rotating_camera' if self.rotate else 'stationary_camera',
                            mc_render_hz=(p.player['frame']-self.frame)/elapsed,
                            raw_meshes={k:v[1] for k,v in p.scene.raw_meshes.items()},
-                           materials=len(p.scene.materials)+len(getattr(p.scene,'atlas_materials',{})), errors=p.error_count,
+                           materials=(len(p.scene.materials)+len(getattr(p.scene,'atlas_materials',{}))
+                                      +len(getattr(p.scene,'animation_materials',{}))), errors=p.error_count,
                            hud_size=[p.render_width,p.render_height],
                            skipped_meshes=p.scene.skipped_meshes-self.skipped,
                            reused_meshes=p.scene.reused_meshes-self.reused,
