@@ -1,0 +1,8 @@
+{
+  "nested_redraw_exception_restored": true,
+  "position_update_keeps_node_material_and_uv": true,
+  "topology_update_keeps_node_and_correct_mapping": true,
+  "duplicate_packet_skipped": true,
+  "restored_vertex_count": 336,
+  "passed": true
+}

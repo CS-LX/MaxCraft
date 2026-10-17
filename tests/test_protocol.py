@@ -1,10 +1,13 @@
 import ctypes
 import math
+import mmap
 from pathlib import Path
 import struct
 import sys
 import unittest
+from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import maxcraft.protocol as protocol
 from maxcraft.protocol import Atomics, ByteRing, Link, MC, MC_SNAPSHOT, ProtocolError, VERTEX
 from maxcraft.geometry import to_mc, to_max, camera_axes, collision_packets
 
@@ -115,6 +118,31 @@ class PlayerTests(unittest.TestCase):
         struct.pack_into('<f', self.link.m, MC + 0x40, float('nan'))
         with self.assertRaises(ProtocolError):
             self.link.read_player()
+
+
+class OverlayTests(unittest.TestCase):
+    def test_consumer_slot_stays_owned_until_next_exchange(self):
+        link = Link.__new__(Link)
+        mapping = mmap.mmap(-1, 4096)
+        link.m, link.a, link.front = mapping, Atomics(mapping), 2
+        with patch.object(protocol, 'PIXELS', 2048), patch.object(protocol, 'SLOT_BYTES', 16):
+            for slot in range(3):
+                struct.pack_into('<IIIIQ', mapping, protocol.OVERLAY_HEADERS + slot*64, 2, 2, 0, 0, slot)
+                mapping[2048+slot*16:2064+slot*16] = bytes([slot+1])*16
+            link.a.exchange32(protocol.OVERLAY, 4)  # Publish slot 0.
+            first = link.overlay()[-1]
+            self.assertIsInstance(first, memoryview)
+            self.assertEqual(bytes(first), b'\x01'*16)
+            self.assertEqual(link.a.exchange32(protocol.OVERLAY, 5), 2)
+            # Producer can now reuse slot 2; it cannot touch consumer slot 0.
+            mapping[2080:2096] = b'x'*16
+            self.assertEqual(bytes(first), b'\x01'*16)
+            first.release()  # QImage's owning copy is made before this release.
+            second = link.overlay()[-1]
+            self.assertEqual(bytes(second), b'\x02'*16)
+            second.release()
+            self.assertIsNone(link.overlay())
+        mapping.close()  # No leaked exported view / BufferError.
 
 
 if __name__ == '__main__':

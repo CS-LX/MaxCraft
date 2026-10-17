@@ -1,5 +1,6 @@
 """Max main-thread adapter: native geometry, camera and texture materials."""
 from pathlib import Path
+from contextlib import contextmanager
 import math
 import struct
 import time
@@ -12,17 +13,37 @@ from .protocol import VERTEX, ProtocolError
 from .textures import region_for_uv, local_uv
 
 
+@contextmanager
+def suspend_redraw():
+    # Max uses a counter. pymxs.redraw(False) increments it again on exit
+    # when nested under an already disabled redraw, and skips cleanup on errors.
+    rt.disableSceneRedraw()
+    try:
+        yield
+    finally:
+        rt.enableSceneRedraw()
+
+
 class Scene:
     def __init__(self, units=70.0):
         self.units = units
         self.id = uuid.uuid4().hex[:8]
         self.nodes = {}
         self.materials = {}
+        self.cutout_template = None
+        self.cutout_pool = []
         self.textures = {}
         self.sprite_maps = {}
         self.raw_meshes = {}
+        self.render_packets = {}
         self.dirty_sprites = set()
         self.mesh_material_keys = {}
+        self.mesh_layouts = {}
+        self.last_camera = None
+        self.last_fov = None
+        self.geometry_changed = False
+        self.skipped_meshes = 0
+        self.reused_meshes = 0
         self.sprite_id = 0
         self.cache = Path.home() / 'AppData' / 'Local' / 'MaxCraft' / 'cache' / self.id
         self.cache.mkdir(parents=True, exist_ok=True)
@@ -30,6 +51,7 @@ class Scene:
         self.last_dynamic = 0.0
 
     def capture_view(self):
+        self.last_camera = self.last_fov = None
         self.viewport = int(rt.viewport.activeViewport)
         self.previous = (rt.viewport.getType(), rt.viewport.getTM(), rt.viewport.getFOV())
         self.previous_camera = rt.viewport.getCamera()
@@ -40,6 +62,9 @@ class Scene:
         self.previous_display = (settings.TextureSizeLimit, settings.UseTextureEnabled,
                                  rt.viewport.getGridVisibility(self.viewport),
                                  settings.ShowMaterialOption, settings.TransparencyEnabled)
+        self.previous_progressive = settings.ProgressiveRenderingEnabled
+        # Allow background refinement while the Qt game overlay owns focus.
+        settings.ProgressiveRenderingEnabled = True
         settings.TextureSizeLimit = max(4096, settings.TextureSizeLimit)
         settings.UseTextureEnabled = True
         settings.ShowMaterialOption = rt.Name('Realistic')
@@ -58,6 +83,7 @@ class Scene:
             settings.UseTextureEnabled = textures
             settings.ShowMaterialOption = material_mode
             settings.TransparencyEnabled = transparency
+            settings.ProgressiveRenderingEnabled = self.previous_progressive
             rt.viewport.setGridVisibility(self.viewport, grid)
             if getattr(self, 'previous_camera', None) is not None and rt.isValidNode(self.previous_camera):
                 rt.viewport.setCamera(self.previous_camera)
@@ -70,6 +96,12 @@ class Scene:
 
     def camera(self, state, yaw, pitch, aspect):
         if not self.previous or not (state['flags'] & 1):
+            return
+        signature = (state['eye'], yaw, pitch, aspect, state['fov'], state['camera_mode'], state['camera_distance'])
+        if signature == self.last_camera:
+            if self.geometry_changed:
+                rt.redrawViews()
+                self.geometry_changed = False
             return
         right, up, back = camera_axes(yaw, pitch)
         eye = to_max(state['eye'], self.units)
@@ -85,8 +117,12 @@ class Scene:
         rt.viewport.setTM(rt.inverse(camera))
         vfov = max(10.0, min(140.0, state['fov'] or 70.0))
         hfov = math.degrees(2 * math.atan(math.tan(math.radians(vfov) / 2) * aspect))
-        rt.viewport.setFOV(hfov)
+        if hfov != self.last_fov:
+            rt.viewport.setFOV(hfov)
+            self.last_fov = hfov
         rt.redrawViews()
+        self.last_camera = signature
+        self.geometry_changed = False
 
     def snapshot(self, selection_only=False):
         source = list(rt.selection if selection_only else rt.geometry)
@@ -125,17 +161,21 @@ class Scene:
             for i in range(0, image.sizeInBytes(), 4):
                 for channel in range(4):
                     pixels[i+channel] = pixels[i+channel] * tint[channel] // 255
-        # Nitrous samples bitmaps bilinearly even with bitmap filtering disabled.
-        # Expand only the used sprite with nearest-neighbor, not the whole atlas.
-        scale = max(1, min(16, 512 // max(image.width(), image.height())))
+        # Standard blended materials need expanded pixels to resist Nitrous
+        # filtering. The cutout shader samples native sprites with point filtering.
+        scale = (max(1, min(16, 512 // max(image.width(), image.height()))) if flags & 2 else 1)
         image = image.scaled(image.width()*scale, image.height()*scale,
                              QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.FastTransformation)
         path, tex, opacity = self.sprite_maps[key]
         if not image.save(str(path)):
             raise OSError('Could not save Minecraft sprite')
         if tex is not None:
-            tex.reload()
-            opacity.reload()
+            if opacity is None:
+                tex.Sprite = rt.openBitmap(str(path))
+            else:
+                tex.reload()
+                opacity.reload()
+            self.geometry_changed = True
 
     def flush_textures(self, budget=2):
         for _ in range(min(budget, len(self.dirty_sprites))):
@@ -151,6 +191,8 @@ class Scene:
         if not (w and h and x+w <= atlas.width() and y+h <= atlas.height() and len(data) == 16+w*h*4):
             raise ProtocolError('Invalid animated atlas patch')
         image = QtGui.QImage(data[16:], w, h, w*4, QtGui.QImage.Format_RGBA8888)
+        if atlas.copy(x, y, w, h) == image:
+            return
         painter = QtGui.QPainter(atlas)
         painter.setCompositionMode(QtGui.QPainter.CompositionMode_Source)
         painter.drawImage(x, y, image)
@@ -185,6 +227,24 @@ class Scene:
             path = self.cache / f'sprite-{self.sprite_id}.png'
             self.sprite_id += 1
             self.sprite_maps[key] = (path, None, None)
+            if not flags & 2:
+                # Alpha-tested surfaces write depth. Treating leaves as blended
+                # opacity maps made entire chunk objects transparent in Nitrous.
+                if self.cutout_template is None:
+                    self.cutout_template = rt.DirectX_9_Shader(
+                        effectFile=str(Path(__file__).parent / 'shaders/voxel.fx'))
+                # Max's first effect clone after bitmap I/O waits ~1 s; later
+                # clones cost ~10 ms. Batch clones before writing new sprites,
+                # so a chunk doesn't pay that wait once per material.
+                if not self.cutout_pool:
+                    self.cutout_pool = [rt.copy(self.cutout_template) for _ in range(64)]
+                mat = self.cutout_pool.pop()
+                mat.name = f'MaxCraft_{self.id}_cutout_{len(self.materials)}'
+                self.write_sprite(key)
+                mat.Sprite = rt.openBitmap(str(path))
+                self.materials[key] = mat
+                self.sprite_maps[key] = (path, mat, None)
+                return key, [rt.point3(*local_uv((v[3],v[4]), rect, image.width(), image.height()), 0) for v in vertices]
             self.write_sprite(key)
             mat = rt.standardMaterial(name=f'MaxCraft_{self.id}_sprite_{len(self.materials)}')
             mat.diffuse = rt.color(255, 255, 255)
@@ -205,51 +265,100 @@ class Scene:
     def delete_key(self, key):
         node = self.nodes.pop(key, None)
         self.mesh_material_keys.pop(key, None)
+        self.mesh_layouts.pop(key, None)
+        self.render_packets.pop(key, None)
+        getattr(self, 'bound_materials', {}).pop(key, None)
         if node is not None and rt.isValidNode(node):
             with pymxs.undo(False):
                 rt.delete(node)
+            self.geometry_changed = True
 
     def mesh(self, key, data, count, origin, texture=0):
         if count > 500000 or count % 3 or len(data) != count * 32:
             raise ProtocolError('Invalid mesh packet')
+        self.raw_meshes[key] = (data, count, origin, texture)
+        # Separate depth-writing solids/cutouts from alpha-blended surfaces so
+        # Nitrous does not sort a whole chunk as one translucent object.
+        solid, blend = [], []
+        for i in range(0, len(data), 96):
+            flags = struct.unpack_from('<I', data, i+28)[0]
+            alpha = data[i+23]
+            translucent = flags & 2 or (flags & 4 and alpha < 255)
+            (blend if translucent else solid).append(data[i:i+96])
+        for suffix, triangles in ((':solid', solid), (':blend', blend)):
+            self._mesh(key+suffix, b''.join(triangles), len(triangles)*3, origin, texture)
+        if not count:
+            self.raw_meshes.pop(key, None)
+
+    def _mesh(self, key, data, count, origin, texture=0):
+        if count > 500000 or count % 3 or len(data) != count * 32:
+            raise ProtocolError('Invalid mesh packet')
         if not count:
             self.delete_key(key)
-            self.raw_meshes.pop(key, None)
             return
-        self.raw_meshes[key] = (data, count, origin, texture)
+        packet = (data, count, origin, texture)
+        if self.render_packets.get(key) == packet and key in self.nodes and rt.isValidNode(self.nodes[key]):
+            self.skipped_meshes += 1
+            return
         points, uv, materials, material_ids = [], [], {}, []
         vertices = list(VERTEX.iter_unpack(data))
         for x, y, z, u, v, color, light, flags in vertices:
             if not all(math.isfinite(n) for n in (x, y, z, u, v)):
                 raise ProtocolError('Non-finite mesh vertex')
             points.append(rt.point3(*to_max((x + origin[0], y + origin[1], z + origin[2]), self.units)))
+        layout = (count, texture, b''.join(data[i+12:i+24] + data[i+28:i+32] for i in range(0, len(data), 32)))
+        node = self.nodes.get(key)
+        valid = node is not None and rt.isValidNode(node)
+        if valid and self.mesh_layouts.get(key) == layout:
+            with pymxs.undo(False), suspend_redraw():
+                rt.setMesh(node, vertices=rt.Array(*points))
+                rt.update(node)
+            self.render_packets[key] = packet
+            self.reused_meshes += 1
+            self.geometry_changed = True
+            return
         for i in range(0, count, 3):
             mat_key, face_uv = self.face_material(texture, vertices[i:i+3], key.startswith(('entities', 'avatar')))
             if mat_key not in materials:
                 materials[mat_key] = len(materials)+1
             material_ids.append(materials[mat_key]); uv.extend(face_uv)
         faces = [rt.point3(i+1, i+2, i+3) for i in range(0, count, 3)]
-        with pymxs.undo(False), pymxs.redraw(False):
-            new_node = rt.mesh(name=f'MaxCraft_{self.id}_{key}', vertices=rt.Array(*points), faces=rt.Array(*faces))
+        with pymxs.undo(False), suspend_redraw():
+            new_node = node if valid else rt.mesh(name=f'MaxCraft_{self.id}_{key}')
             try:
-                rt.setNumTVerts(new_node, count)
-                rt.buildTVFaces(new_node)
-                for i, p in enumerate(uv, 1):
-                    rt.setTVert(new_node, i, p)
-                for i, face in enumerate(faces, 1):
-                    rt.setTVFace(new_node, i, face)
-                    rt.setFaceMatID(new_node, i, material_ids[i-1])
-                    rt.setFaceSmoothGroup(new_node, i, 0)
-                mat = rt.multiMaterial(numsubs=len(materials))
-                for mat_key, index in materials.items():
-                    mat[index-1] = self.materials[mat_key]
-                new_node.material = mat
+                # Keep scene nodes/material bindings stable. Build mapping faces
+                # inside one MAXScript call instead of thousands of pymxs calls.
+                keys = tuple(materials)
+                if valid and getattr(self, 'bound_materials', {}).get(key) == keys:
+                    mat = new_node.material
+                else:
+                    mat = rt.multiMaterial(numsubs=len(materials))
+                    for mat_key, index in materials.items():
+                        mat[index-1] = self.materials[mat_key]
+                if not getattr(self, '_bulk_ready', False):
+                    rt.execute('''fn MaxCraftApplyMesh node verts faces uvs ids material = (
+                        setMesh node vertices:verts faces:faces tverts:uvs materialIDs:ids
+                        buildTVFaces node
+                        for i=1 to faces.count do (
+                            setTVFace node i faces[i]
+                            setFaceSmoothGroup node i 0
+                        )
+                        node.material=material
+                        update node
+                    )''')
+                    self._bulk_ready = True
+                rt.MaxCraftApplyMesh(new_node, rt.Array(*points), rt.Array(*faces), rt.Array(*uv), rt.Array(*material_ids), mat)
                 new_node.wirecolor = rt.color(155, 210, 150)
                 rt.setUserProp(new_node, 'MaxCraftOwned', self.id)
                 rt.update(new_node)
-                self.delete_key(key)
                 self.nodes[key] = new_node
+                self.render_packets[key] = packet
+                self.mesh_layouts[key] = layout
+                if not hasattr(self, 'bound_materials'):
+                    self.bound_materials = {}
+                self.bound_materials[key] = keys
                 self.mesh_material_keys[key] = set(materials)
+                self.geometry_changed = True
                 if len(self.materials) > 512:
                     active = set().union(*self.mesh_material_keys.values())
                     for old in set(self.materials)-active:
@@ -260,7 +369,8 @@ class Scene:
                             try: sprite[0].unlink(missing_ok=True)
                             except OSError: pass
             except Exception:
-                rt.delete(new_node)
+                if not valid:
+                    rt.delete(new_node)
                 raise
 
     def consume(self, kind, data, player=None):
@@ -306,8 +416,11 @@ class Scene:
                 self.mesh(key, data[start + first*32:start + (first+count)*32], count, origin, tex)
                 keep.add(key)
             for key in list(self.nodes):
-                if key.startswith(prefix) and key not in keep:
+                if key.startswith(prefix) and key.rsplit(':', 1)[0] not in keep:
                     self.delete_key(key)
+            for key in list(self.raw_meshes):
+                if key.startswith(prefix) and key not in keep:
+                    self.raw_meshes.pop(key, None)
         # 8/10: light/solids; 9: ragdoll; 11: destructive
         # host edits. These are consumed by the transport but unsupported in v0.1.
 
@@ -315,11 +428,14 @@ class Scene:
         for key in list(self.nodes):
             self.delete_key(key)
         self.raw_meshes.clear()
+        self.render_packets.clear()
         self.dirty_sprites.clear()
         self.materials.clear()
         self.sprite_maps.clear()
         self.textures.clear()
         self.mesh_material_keys.clear()
+        self.mesh_layouts.clear()
+        self.bound_materials = {}
 
 
 def create_demo():

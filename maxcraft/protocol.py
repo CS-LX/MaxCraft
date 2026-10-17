@@ -196,7 +196,9 @@ class Link:
         if not (0 < w <= 3840 and 0 < h <= 2160):
             return None
         start = PIXELS + self.front * SLOT_BYTES
-        return w, h, flags, frame, bytes(self.m[start:start + w * h * 4])
+        # The consumer owns this slot until the next exchange. QImage copies it
+        # before that exchange, so avoid an intermediate full-frame bytes copy.
+        return w, h, flags, frame, memoryview(self.m)[start:start + w * h * 4]
 
     def drain_events(self):
         head, tail = self.a.load64(EVENTS), self.a.load64(EVENTS + 0x40)

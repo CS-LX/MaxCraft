@@ -204,7 +204,7 @@ class Panel(QtWidgets.QDialog):
         layout.addWidget(help_text)
         self.timer = QtCore.QTimer(self)
         self.timer.setTimerType(QtCore.Qt.PreciseTimer)
-        self.timer.setInterval(33)
+        self.timer.setInterval(16)
         self.timer.timeout.connect(self.tick)
         self.timer.start()
 
@@ -265,9 +265,11 @@ class Panel(QtWidgets.QDialog):
         if self.future or self.collision:
             raise RuntimeError('场景碰撞尚未完成，请稍候。')
         self.overlay.fit_viewport()
-        ratio = min(1.0, 1920/self.overlay.width(), 1080/self.overlay.height())
+        ratio = min(1.0, 1280/self.overlay.width(), 720/self.overlay.height())
         self.render_width = round(self.overlay.width()*ratio)
         self.render_height = round(self.overlay.height()*ratio)
+        # The user may have orbited the Max view while paused.
+        self.scene.last_camera = self.scene.last_fov = None
         self.scene.camera(self.player, self.yaw, self.pitch, self.render_width/self.render_height)
         self.overlay.screen_open = bool(self.player['flags'] & 2)
         self.hide()
@@ -376,7 +378,11 @@ class Panel(QtWidgets.QDialog):
         frame = self.link.overlay()
         if frame:
             w, h, flags, _, pixels = frame
-            image = QtGui.QImage(pixels, w, h, w*4, QtGui.QImage.Format_RGBA8888).copy()
+            try:
+                image = QtGui.QImage(pixels, w, h, w*4, QtGui.QImage.Format_RGBA8888).copy()
+            finally:
+                if isinstance(pixels, memoryview):
+                    pixels.release()
             self.overlay.image = image.mirrored(False, True) if flags & 1 else image
             self.overlay.update()
         if self.playing and self.player:
